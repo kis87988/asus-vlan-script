@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# Make sure the script is indeed invoked
+touch /tmp/000-vlan-nat-start
+logger -t "isolate_port" "nat-start: applying POSTROUTING rules for br1"
+
+# NAT inside 192.168.150.0/24 on br1
+iptables -t nat -A POSTROUTING -s 192.168.150.0/24 -d 192.168.150.0/24 \
+  -o br1 -j MASQUERADE
+
+logger -t "isolate_port" "nat-start: all done"
+date >> /tmp/000-vlan-nat-start

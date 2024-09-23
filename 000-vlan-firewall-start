@@ -1,0 +1,44 @@
+#!/bin/sh
+
+# Make sure the script is indeed invoked
+touch /tmp/000-vlan-firewall-start 
+logger -t "isolate_port" "firewall-start: applying INPUT rules for br1"
+
+# Allow new incoming connections from br1
+iptables -I INPUT -i br1 -m state --state NEW -j ACCEPT
+ip6tables -I INPUT -i br1 -j ACCEPT # Same rule as br0 by default
+ip6tables -I INPUT -i br1 -m state --state NEW -j ACCEPT
+
+# Only forbid br1 access the web UI and SSH of the main router
+iptables -I INPUT -i br1 -p tcp --dport 80 -j DROP
+iptables -I INPUT -i br1 -p tcp --dport 22 -j DROP
+ip6tables -I INPUT -i br1 -p tcp --dport 80 -j DROP
+ip6tables -I INPUT -i br1 -p tcp --dport 22 -j DROP
+
+logger -t "isolate_port" "firewall-start: applying FORWARD rules for br1"
+
+# Forbid packets from br1 to be forwarded to other interfaces
+iptables -I FORWARD -i br1 -j DROP
+ip6tables -I FORWARD -i br1 -j DROP
+
+# But allow packet forwarding inside br1
+iptables -I FORWARD -i br1 -o br1 -j ACCEPT
+ip6tables -I FORWARD -i br1 -o br1 -j ACCEPT
+
+# Allow packet forwarding between br1 and eth0 (WAN)
+iptables -I FORWARD -i br1 -o eth0 -j ACCEPT
+ip6tables -I FORWARD -i br1 -o eth0 -j ACCEPT
+
+# Allow one-way traffic from br0 to br1
+iptables -I FORWARD -i br0 -o br1 -j ACCEPT
+iptables -I FORWARD -i br1 -o br0 -m state \
+  --state RELATED,ESTABLISHED -j ACCEPT
+ip6tables -I FORWARD -i br0 -o br1 -j ACCEPT
+ip6tables -I FORWARD -i br1 -o br0 -m state \
+  --state RELATED,ESTABLISHED -j ACCEPT
+
+# Forbid 10.0.0.1. This is must of the modem gateway
+iptables -I FORWARD -i br1 -d 10.0.0.1 -j REJECT
+
+logger -t "isolate_port" "firewall-start: all done"
+date >> /tmp/000-vlan-firewall-start f

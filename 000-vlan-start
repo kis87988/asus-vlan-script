@@ -1,0 +1,45 @@
+#!/bin/sh
+
+# Make sure the script is indeed invoked
+touch /tmp/000-vlan-start
+
+# Physical port to interface map:
+# eth0   WAN
+# eth1   LAN 1
+# eth2   LAN 2
+# eth3   LAN 3
+# eth4   LAN 4
+# eth5   LAN 5
+# eth6   LAN 6
+
+# Bridge of LAN 5, LAN 6, LAN 7, LAN 8
+# eth6   2.4 GHz Radio
+# eth7   5 GHz Radio
+
+isolate_interfaces="eth3"
+
+# Create a new bridge br1 for isolated interfaces
+logger -t "isolate_port" "services-start: creating br1 with LAN 2 (eth3)"
+brctl addbr br1
+brctl stp br1 on # STP to prevent bridge loops
+
+# Delete those interfaces that we want to isolate from br0
+# Create these interfaces in br1 
+for isolate_interface in $isolate_interfaces; do
+    logger -t "isolate_port" "services-start: deleting $isolate_interface from br0"
+    brctl delif br0 $isolate_interface
+    logger -t "isolate_port" "services-start: deleted $isolate_interface from br0"
+    logger -t "isolate_port" "services-start: adding $isolate_interface to br1"
+    brctl addif br1 $isolate_interface
+    logger -t "isolate_port" "services-start: added $isolate_interface to br1"
+done
+
+# Set up the IPv4 address for br1
+# Here we set the subnet to be 192.168.150.0/24
+# IPv6 link local address will be assigned automatically
+logger -t "isolate_port" "services-start: setting up IPv4 address for br1"
+ifconfig br1 192.168.150.1 netmask 255.255.255.0
+ifconfig br1 allmulti up
+
+logger -t "isolate_port" "services-start: all done"
+date >> /tmp/000-vlan-start
